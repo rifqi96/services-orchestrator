@@ -75,6 +75,13 @@ cmd_doctor() {
     while IFS= read -r name; do
       [ -z "$name" ] && continue
       type="$(yaml_service_field "$project" "$name" type)"
+      if [ "$type" = "docker" ]; then
+        local nets; nets="$(yaml_service_field "$project" "$name" networks)"
+        if [ -z "$nets" ]; then
+          ui_warn "$project/$name: docker service has no networks — nginx cannot resolve its container. Add a network, or use type 'host' with the published port."
+          warns=$((warns+1))
+        fi
+      fi
       [ "$type" = "static" ] || continue
       root="$(yaml_service_field "$project" "$name" root)"
       if [ -n "$root" ] && [ ! -d "$root" ]; then

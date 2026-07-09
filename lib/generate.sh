@@ -37,11 +37,23 @@ EOF
 _build_location() {
   local type="$1" upstream="$2" root="$3" ws="$4"
   case "$type" in
-    docker|host)
-      local target="$upstream"
-      [ "$type" = "host" ] && target="host.docker.internal:${upstream##*:}"
+    docker)
+      # Use Docker's embedded DNS + a variable so an unresolvable container name
+      # yields a per-request 502 instead of crashing nginx at startup (which
+      # would take down every other service too).
       echo "  location / {"
-      echo "    proxy_pass http://${target};"
+      echo "    resolver 127.0.0.11 valid=30s ipv6=off;"
+      echo "    set \$sorch_upstream http://${upstream};"
+      echo "    proxy_pass \$sorch_upstream\$request_uri;"
+      _proxy_headers
+      [ "$ws" = "true" ] && _websocket_headers
+      echo "  }"
+      ;;
+    host)
+      # host.docker.internal is injected via extra_hosts, so it always resolves
+      # at startup (a down port yields 502, never a crash).
+      echo "  location / {"
+      echo "    proxy_pass http://host.docker.internal:${upstream##*:};"
       _proxy_headers
       [ "$ws" = "true" ] && _websocket_headers
       echo "  }"

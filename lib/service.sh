@@ -80,9 +80,12 @@ _service_add() {
 
   case "$type" in
     docker)
-      upstream="$(ui_input "Upstream container:port" "app:3000")"
-      networks="$(ui_input "Docker network(s) to join (comma sep, optional)")"
+      ui_dim "Use the container's INTERNAL port (not the host-published one), e.g. app:80."
+      upstream="$(ui_input "Upstream container:port" "app:80")"
+      ui_dim "nginx must share the app's Docker network (see: docker network ls)."
+      networks="$(ui_input "Docker network(s) to join (comma sep)")"
       networks="${networks// /,}"
+      [ -z "$networks" ] && ui_warn "No network set — nginx likely cannot reach a docker upstream. Consider type 'host' with the published port instead."
       ui_confirm "Does this service use websockets?" && ws="true"
       ;;
     host)
@@ -113,9 +116,32 @@ _service_edit() {
   project="${target%%/*}"; name="${target##*/}"
   local type; type="$(yaml_service_field "$project" "$name" type)"
 
-  local field; field="$(ui_choose "Edit field" domains upstream root ssl websocket deploy networks)"
+  local field; field="$(ui_choose "Edit field" type domains upstream root ssl websocket deploy networks)"
   config_backup
   case "$field" in
+    type)
+      local nt; nt="$(ui_choose "New type" docker host static)"
+      yaml_set_service_field "$project" "$name" type "$nt"
+      case "$nt" in
+        docker)
+          local u nw
+          ui_dim "Use the container's INTERNAL port, e.g. app:80."
+          u="$(ui_input "Upstream container:port" "$(yaml_service_field "$project" "$name" upstream)")"
+          yaml_set_service_field "$project" "$name" upstream "$u"
+          nw="$(ui_input "Docker network(s) (comma sep)" "$(yaml_service_field "$project" "$name" networks)")"; nw="${nw// /,}"
+          yaml_set_service_field "$project" "$name" networks "$(_csv_to_json_array "$nw")" --json
+          ;;
+        host)
+          local u; u="$(ui_input "Host port or host:port" "$(yaml_service_field "$project" "$name" upstream)")"
+          yaml_set_service_field "$project" "$name" upstream "$(_normalize_host_upstream "$u")"
+          yaml_set_service_field "$project" "$name" networks "[]" --json
+          ;;
+        static)
+          local r; r="$(ui_input "Static root" "$(yaml_service_field "$project" "$name" root)")"
+          yaml_set_service_field "$project" "$name" root "$r"
+          ;;
+      esac
+      ;;
     domains)
       local v; v="$(ui_input "Domains (space/comma separated)" "$(yaml_service_field "$project" "$name" domains)")"
       v="${v// /,}"

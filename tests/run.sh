@@ -86,7 +86,8 @@ D="$CONF_D/demo-app.conf"; H="$CONF_D/demo-api.conf"; S="$CONF_D/demo-site.conf"
 assert_count "$D" "server {" 2 "docker+ssl -> 2 server blocks (redirect + https)"
 assert_contains "$D" "return 301 https://" "docker+ssl -> http redirect"
 assert_contains "$D" "listen 443 ssl;" "docker+ssl -> https listener"
-assert_contains "$D" "proxy_pass http://app-web:3000;" "docker -> proxy to container"
+assert_contains "$D" "set \$sorch_upstream http://app-web:3000;" "docker -> variable upstream (resilient)"
+assert_contains "$D" "resolver 127.0.0.11" "docker -> docker DNS resolver"
 assert_contains "$D" 'proxy_set_header Upgrade' "websocket headers present"
 assert_contains "$D" "/etc/letsencrypt/live/sorch/fullchain.pem" "https references cert"
 assert_contains "$H" "proxy_pass http://host.docker.internal:9000;" "host -> host.docker.internal"
@@ -106,7 +107,7 @@ echo "== production, ssl=false -> plain http =="
 fixture production false false
 cmd_generate >/dev/null 2>&1
 assert_absent  "$CONF_D/demo-app.conf" "return 301" "ssl=false -> no redirect"
-assert_contains "$CONF_D/demo-app.conf" "proxy_pass http://app-web:3000;" "ssl=false still proxies"
+assert_contains "$CONF_D/demo-app.conf" "set \$sorch_upstream http://app-web:3000;" "ssl=false still proxies (variable)"
 
 echo "== local -> http only =="
 fixture local true true

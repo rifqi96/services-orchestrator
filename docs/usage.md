@@ -103,3 +103,54 @@ All `ssl: true` domains are covered by a single certificate named `sorch`, so
 generated nginx blocks always reference one predictable path. The certbot
 container attempts renewal every 12h; in production/staging a monthly host cron
 (`renew`) adds a belt-and-suspenders renew + reload.
+
+## Choosing `upstream`: docker vs host
+
+This is the most common source of confusion.
+
+**`type: docker`** proxies over a shared Docker network by container name:
+- `upstream` must use the container's **internal** port (what the app listens on
+  *inside* the container), e.g. `myapp-caddy:80` — **not** the host-published
+  port like `8002`.
+- nginx must be attached to that container's network, so list it under
+  `networks` (find it with `docker network ls` / `docker inspect <container>`).
+- If the name can't be resolved, that service returns `502` (it no longer
+  crashes the whole edge), but it still won't work until the network is correct.
+
+**`type: host`** proxies to a port published on the host (`host.docker.internal`):
+- `upstream` is the **host-published** port, e.g. `8002` (from
+  `0.0.0.0:8002->80`). This is the easiest option when your app already
+  publishes a port.
+- The port must be published on `0.0.0.0` — a port bound only to `127.0.0.1`
+  (e.g. `127.0.0.1:5678`) is **not** reachable this way; point at a
+  `0.0.0.0`-published port instead (often a front proxy like Caddy).
+
+> [!TIP]
+> Run `./orchestrator doctor` — it warns if a `docker` service has no network.
+
+## SSL behind Cloudflare
+
+If your domains are proxied through Cloudflare (orange cloud), the Let's Encrypt
+HTTP-01 challenge goes to Cloudflare, not your server, and can fail with `522`.
+Options:
+
+1. **Temporarily grey-cloud** the record (set it to "DNS only") in the
+   Cloudflare dashboard, run `./orchestrator ssl`, then re-enable the proxy.
+   Simplest reliable path for HTTP-01.
+2. **Let Cloudflare handle TLS** at the edge and either set the origin service's
+   `ssl: false` (Cloudflare "Flexible") or install a Cloudflare **Origin
+   Certificate** on the origin (out of scope for `ssl`, but works with a manual
+   cert). Use Full (strict) with an origin cert for real security.
+
+## Troubleshooting
+
+**`docker ps` shows `sorch-nginx` Restarting** — nginx couldn't start. Almost
+always a bad upstream. Check the log:
+
+```bash
+docker logs --tail 50 sorch-nginx
+```
+
+`host not found in upstream "<name>"` means a `docker` service points at a
+container nginx can't resolve — fix the network (or switch to `type: host`).
+After any config change: `./orchestrator generate && docker exec sorch-nginx nginx -t`.

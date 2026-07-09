@@ -8,12 +8,21 @@ services.yml.*.bak
 .env.local
 
 # =============================================================================
+# certificates & keys — NEVER commit private key material
+# (broad catch-all; the only allowed .pem is the public DH params)
+# =============================================================================
+*.pem
+*.key
+!nginx/tls/ssl-dhparams.pem
+
+# =============================================================================
 # generated / runtime artifacts — keep the dirs, ignore the contents
 # =============================================================================
 nginx/conf.d/*
 !nginx/conf.d/.gitkeep
 nginx/.conf.d.tmp/
 nginx/.networks
+docker-compose.networks.yml
 nginx/certbot/conf/*
 !nginx/certbot/conf/.gitkeep
 nginx/certbot/www/*

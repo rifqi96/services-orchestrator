@@ -125,5 +125,6 @@ _local_tls_setup() {
   ui_info "Generating local certificate for: ${domains[*]}"
   mkcert -install >/dev/null 2>&1 || true
   mkcert -cert-file "$dir/fullchain.pem" -key-file "$dir/privkey.pem" "${domains[@]}" >/dev/null 2>&1
+  chmod 600 "$dir/privkey.pem" 2>/dev/null || true
   ui_success "Local certificate ready ($CERT_NAME)."
 }
