@@ -1,0 +1,18 @@
+# instance state (CLI-managed, per-VPS — never commit)
+services.yml
+services.yml.bak
+.env
+.env.local
+
+# generated
+nginx/conf.d/
+nginx/certbot/conf/
+nginx/certbot/www/
+nginx/certbot/logs/
+nginx/logs/
+
+# misc
+.DS_Store
+*.log
+CLAUDE.md
+tasks/
