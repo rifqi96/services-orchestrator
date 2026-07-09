@@ -1,0 +1,32 @@
+# services-orchestrator edge stack: nginx (reverse proxy) + certbot (Let's Encrypt).
+# nginx serves the GENERATED configs in nginx/conf.d (bind-mounted, read-only).
+# External app networks are attached via the generated docker-compose.networks.yml.
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-sorch}-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
+      - ./nginx/logs:/var/log/nginx
+    extra_hosts:
+      # lets `host` services resolve to the VPS / Docker Desktop host.
+      - "host.docker.internal:host-gateway"
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-sorch}-certbot
+    restart: unless-stopped
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/logs:/var/log/letsencrypt
+    # Renew every 12h; the ssl command handles first issuance.
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx

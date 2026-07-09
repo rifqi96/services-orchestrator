@@ -1,0 +1,13 @@
+server {
+  listen 443 ssl;
+  server_name ${SERVER_NAME};
+  server_tokens off;
+
+  ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+${SSL_INCLUDES}
+  access_log /var/log/nginx/access.log;
+  error_log /var/log/nginx/error.log;
+
+${LOCATION_BLOCK}
+}

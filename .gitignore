@@ -1,18 +1,35 @@
-# instance state (CLI-managed, per-VPS — never commit)
+# =============================================================================
+# instance state (CLI-managed, per-VPS) — never commit
+# =============================================================================
 services.yml
 services.yml.bak
+services.yml.*.bak
 .env
 .env.local
 
-# generated
-nginx/conf.d/
-nginx/certbot/conf/
-nginx/certbot/www/
-nginx/certbot/logs/
-nginx/logs/
+# =============================================================================
+# generated / runtime artifacts — keep the dirs, ignore the contents
+# =============================================================================
+nginx/conf.d/*
+!nginx/conf.d/.gitkeep
+nginx/.conf.d.tmp/
+nginx/.networks
+nginx/certbot/conf/*
+!nginx/certbot/conf/.gitkeep
+nginx/certbot/www/*
+!nginx/certbot/www/.gitkeep
+nginx/certbot/logs/*
+!nginx/certbot/logs/.gitkeep
+nginx/logs/*
+!nginx/logs/.gitkeep
 
+# =============================================================================
 # misc
+# =============================================================================
 .DS_Store
 *.log
 CLAUDE.md
 tasks/
+task_research/
+.cursor/
+memory-bank/

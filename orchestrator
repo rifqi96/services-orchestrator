@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# =============================================================================
+# services-orchestrator — portable reverse-proxy + SSL orchestrator
+#
+#   ./orchestrator <command> [args] [--flags]
+#
+# A thin dispatcher: resolves the repo root, loads lib/*.sh, routes to the
+# matching cmd_<name> function. See `./orchestrator help`.
+# =============================================================================
+set -uo pipefail
+
+# --- resolve repo root (works through symlinks & from any CWD) ---------------
+_source="${BASH_SOURCE[0]}"
+while [ -h "$_source" ]; do
+  _dir="$(cd -P "$(dirname "$_source")" >/dev/null 2>&1 && pwd)"
+  _source="$(readlink "$_source")"
+  [[ "$_source" != /* ]] && _source="$_dir/$_source"
+done
+ROOT_DIR="$(cd -P "$(dirname "$_source")" >/dev/null 2>&1 && pwd)"
+cd "$ROOT_DIR" || exit 1
+
+export ROOT_DIR
+export SERVICES_FILE="$ROOT_DIR/services.yml"
+export ENV_FILE="$ROOT_DIR/.env"
+export TEMPLATES_DIR="$ROOT_DIR/templates"
+export NGINX_DIR="$ROOT_DIR/nginx"
+export CONF_D="$NGINX_DIR/conf.d"
+export CONF_TMP="$NGINX_DIR/.conf.d.tmp"
+export NETWORKS_FILE="$NGINX_DIR/.networks"
+export CERTBOT_DIR="$NGINX_DIR/certbot"
+export CERTBOT_LIVE="$CERTBOT_DIR/conf/live"
+export COMPOSE_FILE_MAIN="$ROOT_DIR/docker-compose.yml"
+export COMPOSE_NET_FILE="$ROOT_DIR/docker-compose.networks.yml"
+export CERT_NAME="${CERT_NAME:-sorch}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-sorch}"
+
+# load .env if present (host-specific overrides like CERTBOT_STAGING)
+if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
+
+# --- load modules ------------------------------------------------------------
+for _m in ui deps yaml config generate ssl cron bootstrap init service env lifecycle doctor hosts; do
+  # shellcheck disable=SC1090
+  [ -f "$ROOT_DIR/lib/$_m.sh" ] && source "$ROOT_DIR/lib/$_m.sh"
+done
+
+VERSION="1.0.0"
+
+usage() {
+  cat <<EOF
+${C_BOLD}services-orchestrator${C_RESET} v$VERSION — reverse-proxy + SSL for any project on any VPS
+
+${C_BOLD}Usage:${C_RESET} ./orchestrator <command> [args]
+
+${C_BOLD}Setup${C_RESET}
+  bootstrap            Install deps (docker, yq, gum, mkcert) — auto-detects apt/dnf/yum
+  init                 Create services.yml + .env interactively
+  doctor               Check deps, ports, and config health
+
+${C_BOLD}Manage services${C_RESET} (edits the CLI-managed services.yml)
+  service add          Add a service interactively
+  service edit         Edit an existing service
+  service remove       Remove a service
+  service list         List all projects & services
+  env                  View/edit .env secrets
+
+${C_BOLD}Run${C_RESET}
+  generate             Render nginx config from services.yml
+  up [--tls] [--force] Start the edge (--tls = local self-signed HTTPS)
+  down [--volumes]     Stop the edge
+  deploy [project...]  Run deploy hooks (scoped) then bring the edge up
+  ssl                  Issue/renew Let's Encrypt certificates
+  renew                Renew certificates and reload nginx (used by cron)
+  hosts                Print /etc/hosts lines for local-mode domains
+
+  help                 Show this help
+  version              Print version
+
+${C_DIM}Docs: docs/usage.md${C_RESET}
+EOF
+}
+
+main() {
+  local cmd="${1:-help}"; shift || true
+  case "$cmd" in
+    bootstrap) cmd_bootstrap "$@" ;;
+    init)      cmd_init "$@" ;;
+    doctor)    cmd_doctor "$@" ;;
+    service)   cmd_service "$@" ;;
+    env)       cmd_env "$@" ;;
+    generate)  cmd_generate "$@" ;;
+    up)        cmd_up "$@" ;;
+    down)      cmd_down "$@" ;;
+    deploy)    cmd_deploy "$@" ;;
+    ssl)       cmd_ssl "$@" ;;
+    renew)     cmd_ssl_renew "$@" ;;
+    hosts)     cmd_hosts "$@" ;;
+    version|-v|--version) printf '%s\n' "$VERSION" ;;
+    help|-h|--help) usage ;;
+    *) ui_error "Unknown command: $cmd"; echo; usage; exit 1 ;;
+  esac
+}
+
+main "$@"

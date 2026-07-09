@@ -1,0 +1,60 @@
+# =============================================================================
+# services.example.yml — reference for the CLI-managed services.yml
+# -----------------------------------------------------------------------------
+# You normally NEVER edit services.yml by hand. Use the interactive CLI:
+#     ./orchestrator init
+#     ./orchestrator service add
+#     ./orchestrator service edit
+#     ./orchestrator service remove
+# This file only documents the shape the CLI produces. services.yml itself is
+# gitignored instance state (unique per VPS), like .env.
+# =============================================================================
+
+defaults:
+  # Email used when requesting Let's Encrypt certificates.
+  certbot_email: you@example.com
+  # production | staging | local
+  #   production / staging -> real certs (staging uses LE staging endpoint)
+  #   local                -> HTTP only on localhost, no certbot
+  environment: production
+
+projects:
+
+  # ---- Example project: a blog stack --------------------------------------
+  myblog:
+    enabled: true
+    services:
+
+      # A Dockerized app, proxied by container name over a shared network.
+      - name: blog
+        domains: [blog.example.com]
+        type: docker
+        upstream: blog-web:3000        # container:port
+        networks: [blog-net]           # external docker networks nginx joins
+        ssl: true
+        websocket: false
+        # Optional. If set, `orchestrator deploy` runs this before bringing the
+        # edge up. Leave empty for edge-only (you deploy the app yourself).
+        deploy: "cd ../blog && git pull && docker compose up -d"
+
+      # A service running directly on the host (systemd / pm2 / bare process),
+      # proxied via host.docker.internal.
+      - name: api
+        domains: [api.example.com]
+        type: host
+        upstream: 127.0.0.1:8000       # host:port -> host.docker.internal:8000
+        ssl: true
+        websocket: true                # e.g. app uses websockets
+        deploy: ""
+
+  # ---- Example project: a static marketing site ---------------------------
+  marketing:
+    enabled: true
+    services:
+      - name: site
+        domains: [example.com, www.example.com]
+        type: static
+        root: /var/www/marketing/dist  # nginx serves this directory
+        ssl: true
+        websocket: false
+        deploy: ""
